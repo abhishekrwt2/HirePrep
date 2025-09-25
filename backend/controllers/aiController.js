@@ -1,10 +1,21 @@
 const { GoogleGenAI } = require("@google/genai");
-const { conceptExplainPrompt,questionAnswerPrompt } = require("../utils/prompts");
+const { conceptExplainPrompt, questionAnswerPrompt } = require("../utils/prompts");
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// @desc Generate interview questions and answers using Gemini
-// @route POST /api/ai/generate-questions
+// Helper to safely extract JSON from AI response
+function extractJSON(text) {
+  try {
+    const match = text.match(/\{[\s\S]*\}/); // match first {...} block
+    if (!match) return null;
+    return JSON.parse(match[0]);
+  } catch (err) {
+    console.warn("Failed to parse JSON safely:", err.message);
+    return null;
+  }
+}
+
+// Generate interview questions
 const generateInterviewQuestions = async (req, res) => {
   try {
     const { role, experience, topicsToFocus, numberOfQuestions } = req.body;
@@ -15,23 +26,28 @@ const generateInterviewQuestions = async (req, res) => {
 
     const prompt = questionAnswerPrompt({ role, experience, topicsToFocus, numberOfQuestions });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-lite",
-      contents: prompt,
-    });
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: prompt,
+      });
+    } catch (err) {
+      console.warn("⚠️ 1.5-flash failed, retrying with 2.0-flash-lite...", err.message);
+      response = await ai.models.generateContent({
+        model: "gemini-2.0-flash-lite",
+        contents: prompt,
+      });
+    }
 
-  let rawText = response.text;
+    const text = response?.text || "";
+    const data = extractJSON(text);
 
-// Clean it: Remove ```json and ``` from beginning and end
-const cleanedText = rawText
-  .replace(/^```json\s*/, "") // remove starting ```json
-  .replace(/```$/, "") // remove ending ```
-  .trim(); // remove extra spaces
+    if (!data) {
+      return res.status(500).json({ message: "Failed to extract JSON from AI response", raw: text });
+    }
 
-// Now safe to parse
-const data = JSON.parse(cleanedText);
-
-res.status(200).json(data);
+    res.status(200).json(data);
   } catch (error) {
     res.status(500).json({
       message: "Failed to generate questions",
@@ -39,35 +55,44 @@ res.status(200).json(data);
     });
   }
 };
-// @desc Generate explains an interview question
-// @route POST /api/ai/generate-explanation
-// @access Private
+
+// Generate explanation
 const generateConceptExplanation = async (req, res) => {
   try {
-     const {question}=req.body;
-     if(!question){
-      return res.status(400).json({message:"Missing some fields"});
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ message: "Missing question field" });
 
-     }
-     const prompt=conceptExplainPrompt(question);
-     const response=await ai.models.generateContent({
-      model:"gemini-2.0-flash-lite",
-      contents:prompt,
+    const prompt = conceptExplainPrompt(question);
 
-     });
-     let rawText=response.text;
-     const cleanedText = rawText
-  .replace(/^```json\s*/, "") // remove starting ```json
-  .replace(/```$/, "") // remove ending ```
-  .trim(); // remove extra spaces
-  const data=JSON.parse(cleanedText);
-  res.status(200).json(data);
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: prompt,
+      });
+    } catch (err) {
+      console.warn("⚠️ 1.5-flash failed, retrying with 2.0-flash-lite...", err.message);
+      response = await ai.models.generateContent({
+        model: "gemini-2.0-flash-lite",
+        contents: prompt,
+      });
+    }
+
+    const text = response?.text || "";
+    const data = extractJSON(text);
+
+    if (!data) {
+      return res.status(500).json({ message: "Failed to extract JSON from AI response", raw: text });
+    }
+
+    res.status(200).json(data);
   } catch (error) {
     res.status(500).json({
       message: "Failed to generate explanation",
       error: error.message,
     });
   }
-}
+};
 
 module.exports = { generateInterviewQuestions, generateConceptExplanation };
+
