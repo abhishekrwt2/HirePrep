@@ -26,7 +26,9 @@ const Drawer = ({ isOpen, onClose, title, children }) => {
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
-              <h5 className="text-base font-semibold text-black dark:text-white">{title}</h5>
+              <h5 className="text-base font-semibold text-black dark:text-white break-words">
+                {title}
+              </h5>
               <button
                 type="button"
                 onClick={onClose}
@@ -37,7 +39,9 @@ const Drawer = ({ isOpen, onClose, title, children }) => {
             </div>
 
             {/* Body */}
-            <div>{children}</div>
+            <div className="min-w-0 overflow-x-auto">
+              {children}
+            </div>
           </motion.div>
         </>
       )}
