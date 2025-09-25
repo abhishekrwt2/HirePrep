@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaGithub, FaLinkedin } from 'react-icons/fa';
-import SignUp from './Auth/Signup';
+import SignUp from './Auth/SignUp';
 import Login from './Auth/Login';
 import Modal from '../components/Modal';
 import { UserContext } from '../context/userContext';
