@@ -18,7 +18,8 @@ const Drawer = ({ isOpen, onClose, title, children }) => {
 
           {/* Drawer Panel */}
           <motion.div
-            className="fixed top-[64px] right-0 z-50 h-[calc(100vh-64px)] w-full md:w-1/3 bg-black text-white p-4 overflow-y-auto shadow-lg"
+            className="fixed top-[64px] right-0 z-50 h-[calc(100vh-64px)] w-full md:w-1/3
+                       bg-black text-white p-4 overflow-y-auto shadow-lg"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -32,7 +33,8 @@ const Drawer = ({ isOpen, onClose, title, children }) => {
               <button
                 type="button"
                 onClick={onClose}
-                className="text-gray-400 bg-transparent hover:bg-gray-800 hover:text-white rounded-lg w-8 h-8 flex justify-center items-center"
+                className="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900
+                           dark:hover:bg-gray-700 dark:hover:text-white rounded-lg w-8 h-8 flex justify-center items-center"
               >
                 <LuX className="text-lg" />
               </button>
@@ -50,3 +52,4 @@ const Drawer = ({ isOpen, onClose, title, children }) => {
 };
 
 export default Drawer;
+
