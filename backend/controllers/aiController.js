@@ -1,46 +1,61 @@
-const { GoogleGenAI } = require("@google/genai");
-const { conceptExplainPrompt, questionAnswerPrompt } = require("../utils/prompts");
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { questionAnswerPrompt, conceptExplainPrompt } = require('../utils/prompts');
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Helper to safely extract JSON from AI response
 function extractJSON(text) {
   try {
-    const match = text.match(/\{[\s\S]*\}/); // match first {...} block
-    if (!match) return null;
-    return JSON.parse(match[0]);
+    if (!text) return null;
+
+    // Remove markdown fences if present
+    const cleaned = text.replace(/```(json)?/gi, "").trim();
+
+    // Match both objects {..} and arrays [..]
+    const matches = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/g);
+    if (!matches) return null;
+
+    // Try each candidate block
+    for (let block of matches) {
+      try {
+        return JSON.parse(block);
+      } catch (err) {
+        continue; // try next block
+      }
+    }
+
+    return null; // nothing parsed
   } catch (err) {
-    console.warn("Failed to parse JSON safely:", err.message);
+    console.warn("Failed to extract JSON:", err.message);
     return null;
   }
 }
 
+
+
+
+
 // Generate interview questions
 const generateInterviewQuestions = async (req, res) => {
   try {
-    const { role, experience, topicsToFocus, numberOfQuestions } = req.body;
+    const { role, experience, topicsToFocus, numberOfQuestions, excludeQuestions = [] } = req.body;
 
     if (!role || !experience || !topicsToFocus || !numberOfQuestions) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const prompt = questionAnswerPrompt({ role, experience, topicsToFocus, numberOfQuestions });
+    const prompt = questionAnswerPrompt({ role, experience, topicsToFocus, numberOfQuestions, excludeQuestions });
 
     let response;
     try {
-      response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: prompt,
-      });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      response = await model.generateContent(prompt);
     } catch (err) {
-      console.warn("⚠️ 1.5-flash failed, retrying with 2.0-flash-lite...", err.message);
-      response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-lite",
-        contents: prompt,
-      });
+      console.warn('⚠️ 1.5-flash failed, retrying with 2.0-flash-lite...', err.message);
+      const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+      response = await fallbackModel.generateContent(prompt);
     }
 
-    const text = response?.text || "";
+    const text = response?.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const data = extractJSON(text);
 
     if (!data) {
@@ -49,36 +64,30 @@ const generateInterviewQuestions = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to generate questions",
-      error: error.message,
-    });
+    console.error(error);
+    res.status(500).json({ message: "Failed to generate questions", error: error.message });
   }
 };
 
-// Generate explanation
+// Generate concept explanation
 const generateConceptExplanation = async (req, res) => {
   try {
     const { question } = req.body;
-    if (!question) return res.status(400).json({ message: "Missing question field" });
+    if (!question) return res.status(400).json({ message: "Missing required fields" });
 
     const prompt = conceptExplainPrompt(question);
 
     let response;
     try {
-      response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: prompt,
-      });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      response = await model.generateContent(prompt);
     } catch (err) {
-      console.warn("⚠️ 1.5-flash failed, retrying with 2.0-flash-lite...", err.message);
-      response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-lite",
-        contents: prompt,
-      });
+      console.warn('⚠️ 1.5-flash failed, retrying with 2.0-flash-lite...', err.message);
+      const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+      response = await fallbackModel.generateContent(prompt);
     }
 
-    const text = response?.text || "";
+    const text = response?.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const data = extractJSON(text);
 
     if (!data) {
@@ -87,12 +96,9 @@ const generateConceptExplanation = async (req, res) => {
 
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to generate explanation",
-      error: error.message,
-    });
+    console.error(error);
+    res.status(500).json({ message: "Failed to generate explanation", error: error.message });
   }
 };
 
 module.exports = { generateInterviewQuestions, generateConceptExplanation };
-
